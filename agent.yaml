@@ -1,0 +1,21 @@
+spec_version: "0.1.0"
+name: "agenta"
+version: "1.0.0"
+description: "End-to-end LLMOps developer platform for prompt engineering, automated evaluation, playground experimentation, and reliable LLM application deployment."
+author: "Agenta AI <team@agenta.ai>"
+license: "Apache-2.0"
+metadata:
+  domain: "LLMOps / Prompt Engineering & LLM Evaluation"
+  category: "Developer Tools"
+  framework: "Agenta"
+  language: "Python / TypeScript"
+skills:
+  - "prompt-engineering-and-playground"
+  - "llm-evaluation-and-benchmarking"
+  - "app-deployment-and-monitoring"
+  - "testset-management-and-curation"
+tools:
+  - "prompt-evaluator"
+  - "variant-comparator"
+  - "testset-manager"
+  - "deployment-controller"

@@ -1,0 +1,21 @@
+name: "deployment-controller"
+description: "Controls deployment, traffic allocation, and canary releases of evaluated LLM application variants."
+input_schema:
+  type: "object"
+  properties:
+    variant_id:
+      type: "string"
+      description: "Identifier of the variant to deploy."
+    environment:
+      type: "string"
+      enum:
+        - "staging"
+        - "canary"
+        - "production"
+      description: "Deployment target environment."
+    traffic_percentage:
+      type: "integer"
+      description: "Percentage of traffic allocated (0-100)."
+  required:
+    - "variant_id"
+    - "environment"

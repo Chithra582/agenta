@@ -1,0 +1,18 @@
+name: "testset-manager"
+description: "Manages test datasets, test cases, and synthetic gold dataset generation for LLM applications."
+input_schema:
+  type: "object"
+  properties:
+    action:
+      type: "string"
+      enum:
+        - "list"
+        - "create"
+        - "update"
+        - "delete"
+      description: "Operation to execute on testsets."
+    testset_id:
+      type: "string"
+      description: "Target testset identifier."
+  required:
+    - "action"

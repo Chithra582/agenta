@@ -1,0 +1,19 @@
+name: "prompt-evaluator"
+description: "Evaluates prompt template outputs against ground truth datasets using multi-metric rubrics."
+input_schema:
+  type: "object"
+  properties:
+    prompt_id:
+      type: "string"
+      description: "Unique identifier of the prompt template variant."
+    testset_id:
+      type: "string"
+      description: "Identifier of the test dataset."
+    metrics:
+      type: "array"
+      items:
+        type: "string"
+      description: "Evaluation metrics to compute (accuracy, semantic, cost, latency)."
+  required:
+    - "prompt_id"
+    - "testset_id"

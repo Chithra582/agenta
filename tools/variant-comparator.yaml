@@ -1,0 +1,14 @@
+name: "variant-comparator"
+description: "Compares performance metrics between prompt variants and identifies the optimal champion."
+input_schema:
+  type: "object"
+  properties:
+    candidate_id:
+      type: "string"
+      description: "Identifier of candidate variant."
+    champion_id:
+      type: "string"
+      description: "Identifier of current production champion variant."
+  required:
+    - "candidate_id"
+    - "champion_id"
