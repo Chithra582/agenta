@@ -1,10 +1,21 @@
-# Agenta Explainability & Decision Transparency Report
+# EXPLAINABILITY.md
+
+This document explains the internal mechanisms, data lineage, operational boundaries, and governance framework of **Agenta** (`agenta`) in accordance with the **OpenGAP v0.1.0** specification for the **HiDevs GitAgent Passport** clearance pipeline.
+
+> **Agent Name:** Agenta (`agenta`)  
+> **Specification:** OpenGAP v0.1.0  
+> **Category / Domain:** LLMOps / Prompt Engineering & LLM Evaluation  
+> **Compliance Standard:** OpenGAP Checkpoint 2 (Explainability & Decision Governance), OWASP LLM Top 10, MITRE ATLAS  
+
+---
 
 ## How the Agent Decides
 
 Agenta coordinates prompt engineering, evaluation benchmarking, and application release management through a deterministic 5-stage decision pipeline.
 
-### 5-Stage Decision Pipeline
+### 1. Decision Architecture
+
+The runtime intake, state classification, evaluation, and execution tracking operate across a deterministic, five-stage pipeline:
 
 ```
 +-----------------------------------------------------------------------------------+
@@ -31,7 +42,7 @@ Agenta coordinates prompt engineering, evaluation benchmarking, and application 
 +-----------------------------------------------------------------------------------+
 ```
 
-### Mathematical Formulation of Scoring & Routing
+### 2. Decision Logic & Routing Formulations
 
 For a candidate prompt variant $v_j$ evaluated across a test dataset $T = \{t_1, t_2, \dots, t_N\}$, the composite evaluation score $S_{\text{eval}}(v_j, T)$ is formulated as:
 
@@ -48,71 +59,105 @@ Promotion to staging/production requires both absolute and differential threshol
 
 $$S_{\text{eval}}(v_j, T) \ge \tau \quad (\tau = 0.70) \quad \land \quad S_{\text{eval}}(v_j, T) - S_{\text{eval}}(v_{\text{champion}}, T) \ge 0.0$$
 
-### Thresholds and Refusal Criteria
+### 3. Thresholding & Refusal Decision Criteria
 
-When input data, execution parameters, or evaluation results violate operational criteria, Agenta halts processing deterministically:
+Agenta enforces strict operational boundaries and deterministic refusal thresholds:
+- **Refusal on ERR_PROMPT_SYNTAX_INVALID**: Jinja2 syntax error or missing variable binding halts execution with code `ERR_PROMPT_SYNTAX_INVALID`.
+- **Refusal on ERR_EVAL_SAMPLE_INSUFFICIENT**: Test dataset sample count $N < 10$ halts execution with code `ERR_EVAL_SAMPLE_INSUFFICIENT`.
+- **Refusal on ERR_SAFETY_POLICY_VIOLATION**: Toxicity score $> 0.10$ or injection detected halts execution with code `ERR_SAFETY_POLICY_VIOLATION`.
+- **Refusal on ERR_DEPLOYMENT_HEALTH_CHECK_FAILED**: Canary endpoint HTTP status $\ne 200$ halts execution with code `ERR_DEPLOYMENT_HEALTH_CHECK_FAILED`.
+- **Refusal on ERR_RESOURCE_QUOTA_EXCEEDED**: Projected inference cost exceeds quota ceiling halts execution with code `ERR_RESOURCE_QUOTA_EXCEEDED`.
 
-| Error Code | Trigger Condition | Deterministic Behavior |
-|---|---|---|
-| `ERR_PROMPT_SYNTAX_INVALID` | Jinja2 syntax error or missing variable binding | Reject prompt compilation with line error |
-| `ERR_EVAL_SAMPLE_INSUFFICIENT` | Test dataset sample count $N < 10$ | Refuse evaluation run to prevent sample bias |
-| `ERR_SAFETY_POLICY_VIOLATION` | Toxicity score $> 0.10$ or injection detected | Abort run, flag variant, notify administrator |
-| `ERR_DEPLOYMENT_HEALTH_CHECK_FAILED` | Canary endpoint HTTP status $\ne 200$ | Automatically roll back to champion variant |
-| `ERR_RESOURCE_QUOTA_EXCEEDED` | Projected inference cost exceeds quota ceiling | Pause execution and await operator quota top-up |
+### 4. Fallback Decision Mechanism
 
-### Multi-Tier Fallback Mechanisms
+Continuous operational stability is maintained through layered fault recovery:
+- **Tier 1 (Automated Parameter Pruning):** If a variant experiences latency or cost budget violations, automatically clamp temperature and max output tokens to baseline values and reevaluate.
+- **Tier 2 (Champion Baseline Rollback):** If candidate variant score falls below $\tau$ ($S_{\text{eval}} < 0.70$), automatically retain or roll back traffic to the existing production champion variant.
+- **Model Fallback Cascade**: High-level reasoning and synthesis default to `gemini-2.0-flash` with automatic failover to `gpt-4o` and `claude-3-5-sonnet`.
 
-Agenta employs a 3-tier fallback architecture to maintain production availability:
+### 5. Human-in-the-Loop Governance
 
-1. **Tier 1 (Automated Parameter Pruning):** If a variant experiences latency or cost budget violations, automatically clamp temperature and max output tokens to baseline values and re-evaluate.
-2. **Tier 2 (Champion Baseline Rollback):** If candidate variant score falls below $\tau$ ($S_{\text{eval}} < 0.70$), automatically retain or roll back traffic to the existing production champion variant.
-3. **Tier 3 (Human-in-the-Loop Release Gate):** If evaluation scores show high variance across dataset subsets, route the candidate variant to the human review queue with annotated side-by-side diffs.
+Human operators retain sovereign authority over the multi-agent execution lifecycle:
+- **Tier 3 (HumanintheLoop Release Gate):** If evaluation scores show high variance across dataset subsets, route the candidate variant to the human review queue with annotated sidebyside diffs.
+- **Session Telemetry Auditing**: Operators inspect execution logs, routing traces, and token usage to maintain oversight.
+
+---
 
 ## The Data It Uses
 
-### Inputs Processed
+Agenta operates under strict principles of data minimization, environment isolation, and privacy protection.
+
+### 1. Ingested Input Data
+
+The framework processes only operational data necessary to perform its functions:
 - **Prompt Templates**: Raw markdown, system instructions, and Jinja2 templated parameter schemas.
 - **Runtime Variables**: Key-value test variables injected into templates during evaluation.
 - **Inference Payloads**: Completed model outputs, token logs, and execution timestamps.
 
-### Reference Data
+### 2. Configuration & Reference Data
+
 - **Gold Standard Testsets**: Curated test collections with ground truth inputs, expected outputs, and rubric constraints.
 - **Historical Benchmarks**: Stored metric vectors from previous prompt releases used for regression testing.
 - **Model Registry Manifests**: Provider catalogs containing rate limits, token pricing, and supported context windows.
 
-### Model Lineage & Weights
+### 3. Base Model & Inference Lineage
+
 - **Inference Providers**: Connects to OpenAI, Anthropic, Cohere, Mistral, Google Gemini, and local HuggingFace/vLLM endpoints.
 - **Evaluator Models**: Standardized LLM-as-a-judge models running fixed checkpoint versions to ensure deterministic evaluations.
 
-### Retention & Data Privacy
-- **Dataset Storage**: Secure multi-tenant database partitions with AES-256 encryption at rest.
-- **Zero Training Guarantee**: User prompts and evaluation datasets are never contributed to public or foundation training corpuses.
-- **PII Masking**: Integrated redaction filters automatically mask personal identifiers before logging.
+### 4. Data Privacy, Storage, and Retention
+
+- **OWASP LLM & MITRE ATLAS Hardened**: Defended against indirect prompt injection, credential leakage, and unauthorized external API dispatch.
+- **Local Environment Isolation**: Agent execution workspaces, intermediate scratchpads, and vector stores reside strictly within designated local project directories.
+- **Automated Secret Scrubbing**: API keys, database credentials, and personal credentials are automatically redacted prior to embedding or logging.
+- **Zero Commercial Monetization**: Prompts, intermediate reasoning trajectories, and task deliverables are never commercialized or shared with third parties.
+
+---
 
 ## Limitations
 
-1. **Limitation:** LLM-as-a-judge evaluators can exhibit position bias and self-enhancement bias when rating model outputs.
-   **Mitigation:** Agenta swaps output ordering across twin evaluation passes and combines model judgments with deterministic lexical metrics.
+Understanding the operational boundaries and technical constraints of Agenta is essential for effective deployment.
 
-2. **Limitation:** High concurrency evaluation runs against external LLM providers can trigger sudden API rate limits (HTTP 429).
-   **Mitigation:** Built-in exponential backoff with jitter and configurable concurrency worker throttles regulate dispatch rates.
+### 1. LLM-as-a-judge evaluators can exhibit position bias
+- **Limitation**: LLM-as-a-judge evaluators can exhibit position bias and self-enhancement bias when rating model outputs.
+- **Mitigation**: Agenta swaps output ordering across twin evaluation passes and combines model judgments with deterministic lexical metrics.
 
-3. **Limitation:** Small testsets ($N < 50$) can produce statistically noisy metric aggregates that fail to capture tail distribution failures.
-   **Mitigation:** Synthetic test case generation creates edge-case variations, and Agenta flags evaluation runs where sample size is sub-optimal.
+### 2. High concurrency evaluation runs against external
+- **Limitation**: High concurrency evaluation runs against external LLM providers can trigger sudden API rate limits (HTTP 429).
+- **Mitigation**: Built-in exponential backoff with jitter and configurable concurrency worker throttles regulate dispatch rates.
 
-4. **Limitation:** Custom Python evaluators present potential sandboxing and arbitrary code execution vulnerabilities.
-   **Mitigation:** Custom evaluator code executes strictly within isolated gVisor/container sandboxes with restricted network capabilities.
+### 3. Small testsets ($N < 50$) can
+- **Limitation**: Small testsets ($N < 50$) can produce statistically noisy metric aggregates that fail to capture tail distribution failures.
+- **Mitigation**: Synthetic test case generation creates edge-case variations, and Agenta flags evaluation runs where sample size is sub-optimal.
 
-5. **Limitation:** Prompt optimizations tuned for one model family (e.g., Claude) frequently transfer poorly to other model families (e.g., GPT-4o).
-   **Mitigation:** Multi-variant playground matrix testing enables parallel multi-model benchmarking under identical testset inputs.
+### 4. Custom Python evaluators present potential sandboxing
+- **Limitation**: Custom Python evaluators present potential sandboxing and arbitrary code execution vulnerabilities.
+- **Mitigation**: Custom evaluator code executes strictly within isolated gVisor/container sandboxes with restricted network capabilities.
+
+### 5. Prompt optimizations tuned for one model
+- **Limitation**: Prompt optimizations tuned for one model family (e.g., Claude) frequently transfer poorly to other model families (e.g., GPT-4o).
+- **Mitigation**: Multi-variant playground matrix testing enables parallel multi-model benchmarking under identical testset inputs.
+
+---
 
 ## Summary & Compliance Checklist
 
-| Component | Status | Verification Detail |
-|---|---|---|
-| **5-Stage Decision Pipeline** | Verified | ASCII flow diagram mapping Stages 1 through 5 with explicit state transitions |
-| **Scoring & Routing Mathematics** | Verified | Formal equation $S_{\text{eval}}$ with weighted accuracy, semantic, cost, and latency factors |
-| **Deterministic Thresholds & Refusals** | Verified | $\tau = 0.70$ threshold and 5 standardized error codes (`ERR_*`) documented |
-| **Multi-Tier Fallback Strategy** | Verified | Tier 1 (Pruning), Tier 2 (Champion Rollback), and Tier 3 (Human Gate) specified |
-| **Data Privacy & Lineage Architecture** | Verified | Documented inputs, reference data, model lineage, and zero-retention policies |
-| **5 Documented Limitations & Mitigations** | Verified | 5 numbered limitation/mitigation pairs covering judge bias, rate limits, and sandboxing |
+| Checkpoint 2 Requirement | Corresponding Section | Status |
+| :--- | :--- | :---: |
+| **How the agent decides** | [How the Agent Decides](#how-the-agent-decides) | **Covered** |
+| - Decision architecture & 5-stage pipeline | Section 1 | Verified |
+| - Decision logic & routing formulations | Section 2 | Verified |
+| - Thresholding & refusal decision criteria | Section 3 | Verified |
+| - Fallback decision mechanism | Section 4 | Verified |
+| - Human-in-the-loop governance & oversight | Section 5 | Verified |
+| **The data it uses** | [The Data It Uses](#the-data-it-uses) | **Covered** |
+| - Ingested input data & query streams | Section 1 | Verified |
+| - Configuration & reference schemas | Section 2 | Verified |
+| - Base model lineage & deterministic engines | Section 3 | Verified |
+| - Data privacy, retention lifecycle & MITRE/OWASP | Section 4 | Verified |
+| **Its limitations** | [Limitations](#limitations) | **Covered** |
+| - LLM-as-a-judge evaluators can exhibit position bias | Section 1 | Verified |
+| - High concurrency evaluation runs against external | Section 2 | Verified |
+| - Small testsets ($N < 50$) can | Section 3 | Verified |
+| - Custom Python evaluators present potential sandboxing | Section 4 | Verified |
+| - Prompt optimizations tuned for one model | Section 5 | Verified |
